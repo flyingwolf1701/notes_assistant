@@ -1,0 +1,31 @@
+# Flutter/Dart generated files
+.dart_tool/
+build/
+
+# Flutter plugin dependencies (auto-generated)
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Android local/generated files
+android/.gradle/
+android/local.properties
+android/app/build.gradle
+android/build.gradle
+android/settings.gradle
+android/gradle.properties
+android/gradle/
+android/gradlew
+android/gradlew.bat
+
+# Android generated plugin registrant
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+# Build logs and scripts
+*.log
+build_check.bat
+build_log.bat
+run_on_emulator.bat
+run_pub_get.bat
+
+# Claude Code local config
+.claude/

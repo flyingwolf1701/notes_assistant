@@ -22,7 +22,7 @@ class ActionBar extends ConsumerWidget {
         color: scheme.surfaceContainerHighest,
         boxShadow: [
           BoxShadow(
-            color: scheme.shadow.withOpacity(0.1),
+            color: scheme.shadow.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -130,7 +130,7 @@ class _ActionButton extends StatelessWidget {
                     icon,
                     size: 28,
                     color: onTap == null
-                        ? Theme.of(context).colorScheme.onSurface.withOpacity(0.3)
+                        ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)
                         : color,
                   ),
             const SizedBox(height: 2),
@@ -138,7 +138,7 @@ class _ActionButton extends StatelessWidget {
               label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: onTap == null
-                        ? Theme.of(context).colorScheme.onSurface.withOpacity(0.3)
+                        ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)
                         : color,
                   ),
             ),

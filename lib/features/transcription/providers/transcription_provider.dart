@@ -31,12 +31,14 @@ final recordingServiceProvider = Provider<RecordingService>((ref) {
 
 // ── Main state notifier ──────────────────────────────────────────────────────
 
-class TranscriptionNotifier extends StateNotifier<TranscriptionState> {
-  TranscriptionNotifier(this._recorder, this._repository)
-      : super(const TranscriptionState());
+class TranscriptionNotifier extends Notifier<TranscriptionState> {
+  @override
+  TranscriptionState build() {
+    return const TranscriptionState();
+  }
 
-  final RecordingService _recorder;
-  final ProcessingRepository _repository;
+  RecordingService get _recorder => ref.read(recordingServiceProvider);
+  ProcessingRepository get _repository => ref.read(processingRepositoryProvider);
 
   // ── Recording ──────────────────────────────────────────────────────────────
 
@@ -142,8 +144,6 @@ class TranscriptionNotifier extends StateNotifier<TranscriptionState> {
 }
 
 final transcriptionProvider =
-    StateNotifierProvider<TranscriptionNotifier, TranscriptionState>((ref) {
-  final recorder = ref.watch(recordingServiceProvider);
-  final repository = ref.watch(processingRepositoryProvider);
-  return TranscriptionNotifier(recorder, repository);
-});
+    NotifierProvider<TranscriptionNotifier, TranscriptionState>(
+  TranscriptionNotifier.new,
+);

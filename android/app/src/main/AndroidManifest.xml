@@ -6,16 +6,17 @@
     <!-- Internet for OpenRouter API -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Storage Access Framework (Phase 3 – Obsidian vault) -->
+    <!-- Storage Access Framework (Phase 3 — Obsidian vault) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
     <application
-        android:label="notes_assistant"
+        android:label="Notes Application (Flutter)"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:requestLegacyExternalStorage="false">
 
         <activity
@@ -43,7 +44,7 @@
             android:value="2" />
     </application>
 
-    <!-- SAF provider (needed for shared_storage in Phase 3) -->
+    <!-- SAF for Obsidian vault access (Phase 3) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />

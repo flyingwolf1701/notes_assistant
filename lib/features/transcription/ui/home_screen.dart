@@ -34,7 +34,7 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notes Assistant'),
+        title: const Text('Notes Assistant (Flutter)'),
         centerTitle: true,
         actions: [
           // Recording status indicator
