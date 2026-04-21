@@ -12,9 +12,9 @@ class TranscriptionState {
     this.audioPath,
     this.editMode = EditMode.none,
     this.recordingStatus = RecordingStatus.idle,
+    this.recordingSeconds = 0,
     this.isRawExpanded = true,
     this.isPolishedExpanded = true,
-    // Checkbox selections for clipboard / Obsidian export
     this.exportRaw = true,
     this.exportPolished = false,
     this.exportAudio = false,
@@ -26,6 +26,7 @@ class TranscriptionState {
   final String? audioPath;
   final EditMode editMode;
   final RecordingStatus recordingStatus;
+  final int recordingSeconds;
   final bool isRawExpanded;
   final bool isPolishedExpanded;
   final bool exportRaw;
@@ -37,12 +38,19 @@ class TranscriptionState {
   bool get isProcessing => recordingStatus == RecordingStatus.processing;
   bool get hasContent => rawText.isNotEmpty || polishedText.isNotEmpty;
 
+  String get recordingDuration {
+    final m = recordingSeconds ~/ 60;
+    final s = recordingSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
   TranscriptionState copyWith({
     String? rawText,
     String? polishedText,
     String? audioPath,
     EditMode? editMode,
     RecordingStatus? recordingStatus,
+    int? recordingSeconds,
     bool? isRawExpanded,
     bool? isPolishedExpanded,
     bool? exportRaw,
@@ -58,6 +66,7 @@ class TranscriptionState {
       audioPath: clearAudio ? null : (audioPath ?? this.audioPath),
       editMode: editMode ?? this.editMode,
       recordingStatus: recordingStatus ?? this.recordingStatus,
+      recordingSeconds: recordingSeconds ?? this.recordingSeconds,
       isRawExpanded: isRawExpanded ?? this.isRawExpanded,
       isPolishedExpanded: isPolishedExpanded ?? this.isPolishedExpanded,
       exportRaw: exportRaw ?? this.exportRaw,

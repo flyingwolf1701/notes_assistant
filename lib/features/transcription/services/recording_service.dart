@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'package:path_provider/path_provider.dart' show getApplicationDocumentsDirectory;
 import 'package:record/record.dart';
 
 /// Wraps the `record` package for audio capture.
@@ -12,16 +12,19 @@ class RecordingService {
 
   /// Starts recording. Returns the output file path.
   Future<String> start() async {
-    final dir = await getTemporaryDirectory();
+    final hasPermission = await _recorder.hasPermission();
+    if (!hasPermission) throw Exception('Microphone permission denied');
+
+    final dir = await getApplicationDocumentsDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    _currentPath = '${dir.path}/recording_$timestamp.opus';
+    _currentPath = '${dir.path}/recording_$timestamp.m4a';
 
     await _recorder.start(
       RecordConfig(
-        encoder: AudioEncoder.opus,
-        sampleRate: 16000, // Whisper optimal sample rate
-        numChannels: 1,    // Mono for speech
-        bitRate: 32000,    // 32kbps — good quality / small size
+        encoder: AudioEncoder.aacLc,
+        sampleRate: 44100,
+        numChannels: 1,
+        bitRate: 128000,
       ),
       path: _currentPath!,
     );

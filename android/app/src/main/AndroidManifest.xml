@@ -3,6 +3,10 @@
     <!-- Audio recording -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Camera for image transcription -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
     <!-- Internet for OpenRouter API -->
     <uses-permission android:name="android.permission.INTERNET" />
 

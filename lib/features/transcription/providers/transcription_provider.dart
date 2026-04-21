@@ -1,7 +1,12 @@
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../recordings/models/recording.dart';
+import '../../recordings/providers/recordings_provider.dart';
+import '../../settings/providers/prompts_provider.dart';
+import '../data/groq_transcription_service.dart';
 import '../data/open_router_repository.dart';
 import '../models/transcription_state.dart';
 import '../services/processing_repository.dart';
@@ -18,9 +23,19 @@ final apiKeyProvider = Provider<String>((ref) {
   return prefs.getString('openrouter_api_key') ?? '';
 });
 
+final groqApiKeyProvider = Provider<String>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return prefs.getString('groq_api_key') ?? '';
+});
+
 final processingRepositoryProvider = Provider<ProcessingRepository>((ref) {
   final apiKey = ref.watch(apiKeyProvider);
   return OpenRouterRepository(apiKey: apiKey);
+});
+
+final groqTranscriptionProvider = Provider<GroqTranscriptionService>((ref) {
+  final apiKey = ref.watch(groqApiKeyProvider);
+  return GroqTranscriptionService(apiKey: apiKey);
 });
 
 final recordingServiceProvider = Provider<RecordingService>((ref) {
@@ -32,19 +47,22 @@ final recordingServiceProvider = Provider<RecordingService>((ref) {
 // ── Main state notifier ──────────────────────────────────────────────────────
 
 class TranscriptionNotifier extends Notifier<TranscriptionState> {
+  Timer? _recordingTimer;
+
   @override
   TranscriptionState build() {
+    ref.onDispose(() => _recordingTimer?.cancel());
     return const TranscriptionState();
   }
 
   RecordingService get _recorder => ref.read(recordingServiceProvider);
-  ProcessingRepository get _repository => ref.read(processingRepositoryProvider);
+  GroqTranscriptionService get _groq => ref.read(groqTranscriptionProvider);
 
   // ── Recording ──────────────────────────────────────────────────────────────
 
   Future<void> toggleRecording() async {
     if (state.isRecording) {
-      await _stopAndProcess();
+      await _stopRecording();
     } else {
       await _startRecording();
     }
@@ -54,9 +72,14 @@ class TranscriptionNotifier extends Notifier<TranscriptionState> {
     try {
       state = state.copyWith(
         recordingStatus: RecordingStatus.recording,
+        recordingSeconds: 0,
         clearError: true,
+        clearAudio: true,
       );
       await _recorder.start();
+      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        state = state.copyWith(recordingSeconds: state.recordingSeconds + 1);
+      });
     } catch (e) {
       state = state.copyWith(
         recordingStatus: RecordingStatus.idle,
@@ -65,25 +88,38 @@ class TranscriptionNotifier extends Notifier<TranscriptionState> {
     }
   }
 
-  Future<void> _stopAndProcess() async {
+  Future<void> _stopRecording() async {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    final durationSeconds = state.recordingSeconds;
     try {
       state = state.copyWith(recordingStatus: RecordingStatus.processing);
-
       final audioPath = await _recorder.stop();
       if (audioPath == null) throw Exception('No audio file produced');
-
       state = state.copyWith(audioPath: audioPath);
 
-      // Transcribe
-      final rawText = await _repository.transcribe(audioPath);
+      final key = ref.read(groqApiKeyProvider);
+      // ignore: avoid_print
+      print('DEBUG groq key length=${key.length} starts=${key.isEmpty ? "EMPTY" : key.substring(0, 4)}');
+      final rawText = await _groq.transcribe(audioPath);
       state = state.copyWith(rawText: rawText);
 
-      // Refine
-      final polishedText = await _repository.refine(rawText);
+      final activePrompt = ref.read(activePromptProvider);
+      final polishedText = await _groq.refine(rawText, systemPrompt: activePrompt.content);
       state = state.copyWith(
         polishedText: polishedText,
         recordingStatus: RecordingStatus.idle,
       );
+
+      final recording = Recording(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        createdAt: DateTime.now(),
+        durationSeconds: durationSeconds,
+        audioPath: audioPath,
+        rawText: rawText,
+        polishedText: polishedText,
+      );
+      await ref.read(recordingsProvider.notifier).add(recording);
     } catch (e) {
       state = state.copyWith(
         recordingStatus: RecordingStatus.idle,
@@ -94,12 +130,7 @@ class TranscriptionNotifier extends Notifier<TranscriptionState> {
 
   // ── Edit mode ──────────────────────────────────────────────────────────────
 
-  /// Toggle a card into edit mode. Enforces the exclusive write lock.
-  void setEditMode(EditMode mode) {
-    state = state.copyWith(editMode: mode);
-  }
-
-  /// Save edited text back into state from a TextEditingController.
+  void setEditMode(EditMode mode) => state = state.copyWith(editMode: mode);
   void updateRawText(String text) => state = state.copyWith(rawText: text);
   void updatePolishedText(String text) =>
       state = state.copyWith(polishedText: text);
@@ -124,7 +155,6 @@ class TranscriptionNotifier extends Notifier<TranscriptionState> {
 
   Future<void> copyToClipboard() async {
     final buffer = StringBuffer();
-
     if (state.exportRaw && state.rawText.isNotEmpty) {
       buffer.writeln('# Raw\n${state.rawText}\n');
     }
@@ -134,7 +164,6 @@ class TranscriptionNotifier extends Notifier<TranscriptionState> {
     if (state.exportAudio && state.audioPath != null) {
       buffer.write('![[audio_link.opus]]');
     }
-
     await Clipboard.setData(ClipboardData(text: buffer.toString().trim()));
   }
 

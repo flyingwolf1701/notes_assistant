@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../image_transcription/ui/image_transcription_screen.dart';
 import '../../providers/transcription_provider.dart';
 
 /// Bottom action bar with four icon buttons:
@@ -50,12 +51,16 @@ class ActionBar extends ConsumerWidget {
             onTap: () => _showComingSoon(context, 'Obsidian integration'),
           ),
 
-          // 3. Transcribe from image (Phase 4 — placeholder)
+          // 3. Transcribe from image
           _ActionButton(
             icon: Icons.image_search,
             label: 'Image',
             color: scheme.tertiary,
-            onTap: () => _showComingSoon(context, 'Image transcription'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const ImageTranscriptionScreen()),
+            ),
           ),
 
           // 4. Copy to clipboard

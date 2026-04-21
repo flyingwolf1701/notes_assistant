@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'core/theme.dart';
+import 'core/desktop/desktop_wrapper.dart';
 import 'features/transcription/ui/home_screen.dart';
 
 class NotesAssistantApp extends StatelessWidget {
@@ -7,7 +9,7 @@ class NotesAssistantApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    final app = MaterialApp(
       title: 'Notes Assistant',
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
@@ -15,5 +17,10 @@ class NotesAssistantApp extends StatelessWidget {
       home: const HomeScreen(),
       debugShowCheckedModeBanner: false,
     );
+
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      return DesktopWrapper(child: app);
+    }
+    return app;
   }
 }

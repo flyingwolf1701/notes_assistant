@@ -1,0 +1,87 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:dio/dio.dart';
+
+class VisionService {
+  VisionService({required String apiKey})
+      : _dio = Dio(BaseOptions(
+          baseUrl: 'https://api.groq.com/openai/v1',
+          headers: {'Authorization': 'Bearer $apiKey'},
+          receiveTimeout: const Duration(seconds: 60),
+        ));
+
+  final Dio _dio;
+
+  static const _extractPrompt = '''
+Extract all text from this image and format it as Markdown.
+Rules:
+- Preserve headings, lists, and paragraph structure where visible
+- For words you cannot read clearly due to handwriting or image quality,
+  write them as {option1|option2|option3} with your best guesses as options
+- Do not add commentary — output only the extracted Markdown text
+''';
+
+  static const _mergePrompt = '''
+The following are Markdown text extractions from multiple photos of the same document, taken in order.
+Consecutive photos likely overlap — merge them into a single clean Markdown document by:
+1. Detecting and removing duplicate/overlapping content between sections
+2. Preserving the correct reading order
+3. Keeping {option1|option2} uncertainty markers intact
+4. Outputting only the final merged Markdown, no commentary
+''';
+
+  Future<String> extractFromImage(String imagePath) async {
+    final bytes = await File(imagePath).readAsBytes();
+    final base64Image = base64Encode(bytes);
+    final ext = imagePath.split('.').last.toLowerCase();
+    final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/chat/completions',
+      data: jsonEncode({
+        'model': 'llama-3.2-11b-vision-preview',
+        'messages': [
+          {
+            'role': 'user',
+            'content': [
+              {'type': 'text', 'text': _extractPrompt},
+              {
+                'type': 'image_url',
+                'image_url': {'url': 'data:$mime;base64,$base64Image'},
+              },
+            ],
+          }
+        ],
+      }),
+    );
+
+    final choices = response.data?['choices'] as List<dynamic>?;
+    if (choices == null || choices.isEmpty) return '';
+    return (choices.first['message']['content'] as String?) ?? '';
+  }
+
+  Future<String> mergeExtractions(List<String> extractions) async {
+    if (extractions.length == 1) return extractions.first;
+
+    final numbered = extractions
+        .asMap()
+        .entries
+        .map((e) => '## Photo ${e.key + 1}\n${e.value}')
+        .join('\n\n---\n\n');
+
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/chat/completions',
+      data: jsonEncode({
+        'model': 'llama-3.2-11b-vision-preview',
+        'messages': [
+          {'role': 'system', 'content': _mergePrompt},
+          {'role': 'user', 'content': numbered},
+        ],
+      }),
+    );
+
+    final choices = response.data?['choices'] as List<dynamic>?;
+    if (choices == null || choices.isEmpty) return extractions.join('\n\n');
+    return (choices.first['message']['content'] as String?) ?? extractions.join('\n\n');
+  }
+}

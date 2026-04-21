@@ -29,7 +29,7 @@ class OpenRouterRepository implements ProcessingRepository {
       'model': 'openai/whisper-1',
       'file': await MultipartFile.fromFile(
         file.path,
-        filename: 'audio.opus',
+        filename: 'audio.m4a',
       ),
     });
 
