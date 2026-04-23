@@ -6,6 +6,20 @@ import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'features/transcription/providers/transcription_provider.dart';
 
+const _kDevKeys = {
+  'api_key_groq': String.fromEnvironment('GROQ_API_KEY'),
+  'api_key_openrouter': String.fromEnvironment('OPENROUTER_API_KEY'),
+  'api_key_siliconflow': String.fromEnvironment('SILICONFLOW_API_KEY'),
+};
+
+Future<void> _seedDevKeys(SharedPreferences prefs) async {
+  for (final entry in _kDevKeys.entries) {
+    if (entry.value.isNotEmpty) {
+      await prefs.setString(entry.key, entry.value);
+    }
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -27,6 +41,7 @@ void main() async {
   }
 
   final prefs = await SharedPreferences.getInstance();
+  await _seedDevKeys(prefs);
   runApp(
     ProviderScope(
       overrides: [

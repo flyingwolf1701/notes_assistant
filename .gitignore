@@ -29,3 +29,6 @@ run_pub_get.bat
 
 # Claude Code local config
 .claude/
+
+# Local dev keys
+.env.json

@@ -1,0 +1,2 @@
+Think using the caveman-full skill: C:\Users\trini\software_engineer\notes_assistant\.claude\skills\caveman-full.md
+Communicate using the caveman-lite skill: C:\Users\trini\software_engineer\notes_assistant\.claude\skills\caveman-lite.md

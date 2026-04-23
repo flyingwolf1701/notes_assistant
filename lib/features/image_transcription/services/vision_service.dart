@@ -1,16 +1,23 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'vision_service_base.dart';
 
-class VisionService {
-  VisionService({required String apiKey})
-      : _dio = Dio(BaseOptions(
-          baseUrl: 'https://api.groq.com/openai/v1',
+class VisionService implements VisionServiceBase {
+  VisionService({
+    required String apiKey,
+    required String baseUrl,
+    this.extractModel = 'meta-llama/llama-4-scout-17b-16e-instruct',
+    this.mergeModel = 'llama-3.3-70b-versatile',
+  }) : _dio = Dio(BaseOptions(
+          baseUrl: baseUrl,
           headers: {'Authorization': 'Bearer $apiKey'},
           receiveTimeout: const Duration(seconds: 60),
         ));
 
   final Dio _dio;
+  final String extractModel;
+  final String mergeModel;
 
   static const _extractPrompt = '''
 Extract all text from this image and format it as Markdown.
@@ -30,6 +37,7 @@ Consecutive photos likely overlap — merge them into a single clean Markdown do
 4. Outputting only the final merged Markdown, no commentary
 ''';
 
+  @override
   Future<String> extractFromImage(String imagePath) async {
     final bytes = await File(imagePath).readAsBytes();
     final base64Image = base64Encode(bytes);
@@ -39,7 +47,7 @@ Consecutive photos likely overlap — merge them into a single clean Markdown do
     final response = await _dio.post<Map<String, dynamic>>(
       '/chat/completions',
       data: jsonEncode({
-        'model': 'llama-3.2-11b-vision-preview',
+        'model': extractModel,
         'messages': [
           {
             'role': 'user',
@@ -60,6 +68,7 @@ Consecutive photos likely overlap — merge them into a single clean Markdown do
     return (choices.first['message']['content'] as String?) ?? '';
   }
 
+  @override
   Future<String> mergeExtractions(List<String> extractions) async {
     if (extractions.length == 1) return extractions.first;
 
@@ -72,7 +81,7 @@ Consecutive photos likely overlap — merge them into a single clean Markdown do
     final response = await _dio.post<Map<String, dynamic>>(
       '/chat/completions',
       data: jsonEncode({
-        'model': 'llama-3.2-11b-vision-preview',
+        'model': mergeModel,
         'messages': [
           {'role': 'system', 'content': _mergePrompt},
           {'role': 'user', 'content': numbered},

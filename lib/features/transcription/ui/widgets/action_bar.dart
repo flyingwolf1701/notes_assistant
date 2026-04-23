@@ -43,15 +43,7 @@ class ActionBar extends ConsumerWidget {
                 : () => notifier.toggleRecording(),
           ),
 
-          // 2. Send to Obsidian (Phase 3 — currently disabled)
-          _ActionButton(
-            icon: Icons.send,
-            label: 'Obsidian',
-            color: scheme.secondary,
-            onTap: () => _showComingSoon(context, 'Obsidian integration'),
-          ),
-
-          // 3. Transcribe from image
+          // 2. Transcribe from image
           _ActionButton(
             icon: Icons.image_search,
             label: 'Image',
@@ -61,6 +53,14 @@ class ActionBar extends ConsumerWidget {
               MaterialPageRoute(
                   builder: (_) => const ImageTranscriptionScreen()),
             ),
+          ),
+
+          // 3. Send to Obsidian (Phase 3 — currently disabled)
+          _ActionButton(
+            icon: Icons.send,
+            label: 'Obsidian',
+            color: scheme.secondary,
+            onTap: () => _showComingSoon(context, 'Obsidian integration'),
           ),
 
           // 4. Copy to clipboard

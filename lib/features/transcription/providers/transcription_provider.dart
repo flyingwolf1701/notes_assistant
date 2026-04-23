@@ -1,41 +1,83 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/models/ai_provider.dart';
+import '../../../core/providers/local_llm_providers.dart';
+export '../../../core/providers/shared_preferences_provider.dart' show sharedPreferencesProvider;
+import '../../../core/providers/shared_preferences_provider.dart';
 import '../../recordings/models/recording.dart';
 import '../../recordings/providers/recordings_provider.dart';
 import '../../settings/providers/prompts_provider.dart';
 import '../data/groq_transcription_service.dart';
-import '../data/open_router_repository.dart';
+import '../data/openai_chat_service.dart';
 import '../models/transcription_state.dart';
-import '../services/processing_repository.dart';
 import '../services/recording_service.dart';
 
-// ── Infrastructure providers ─────────────────────────────────────────────────
+// ── API key lookup ───────────────────────────────────────────────────────────
 
-final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
-  throw UnimplementedError('Override in main() via ProviderScope overrides');
-});
+String _apiKeyFor(dynamic prefs, String id) =>
+    prefs.getString('api_key_$id') ??
+    (id == 'groq' ? prefs.getString('groq_api_key') : null) ??
+    (id == 'openrouter' ? prefs.getString('openrouter_api_key') : null) ??
+    '';
 
-final apiKeyProvider = Provider<String>((ref) {
+// Legacy aliases kept so existing importers compile unchanged.
+final groqApiKeyProvider = Provider<String>((ref) =>
+    _apiKeyFor(ref.watch(sharedPreferencesProvider), 'groq'));
+
+final apiKeyProvider = Provider<String>((ref) =>
+    _apiKeyFor(ref.watch(sharedPreferencesProvider), 'openrouter'));
+
+// ── Task model / provider selection ─────────────────────────────────────────
+
+final transcribeModelProvider = Provider<String>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return prefs.getString('openrouter_api_key') ?? '';
+  return prefs.getString('model_transcribe') ?? 'whisper-large-v3-turbo';
 });
 
-final groqApiKeyProvider = Provider<String>((ref) {
+final refineModelProvider = Provider<String>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return prefs.getString('groq_api_key') ?? '';
+  return prefs.getString('model_refine') ?? 'llama-3.3-70b-versatile';
 });
 
-final processingRepositoryProvider = Provider<ProcessingRepository>((ref) {
-  final apiKey = ref.watch(apiKeyProvider);
-  return OpenRouterRepository(apiKey: apiKey);
+final refineProviderIdProvider = Provider<String>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return prefs.getString('provider_refine') ?? 'groq';
 });
+
+final visionExtractModelProvider = Provider<String>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return prefs.getString('model_vision_extract') ?? 'qwen/qwen3.5-flash-02-23';
+});
+
+final visionMergeModelProvider = Provider<String>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return prefs.getString('model_vision_merge') ?? 'qwen/qwen3.5-flash-02-23';
+});
+
+final visionProviderIdProvider = Provider<String>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return prefs.getString('provider_vision') ?? 'openrouter';
+});
+
+// ── Service providers ────────────────────────────────────────────────────────
 
 final groqTranscriptionProvider = Provider<GroqTranscriptionService>((ref) {
   final apiKey = ref.watch(groqApiKeyProvider);
-  return GroqTranscriptionService(apiKey: apiKey);
+  final transcribeModel = ref.watch(transcribeModelProvider);
+  return GroqTranscriptionService(apiKey: apiKey, transcribeModel: transcribeModel);
+});
+
+final refineServiceProvider = Provider<OpenAiChatService>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  final providerId = ref.watch(refineProviderIdProvider);
+  final provider = providerById(providerId);
+  return OpenAiChatService(
+    baseUrl: provider.baseUrl,
+    apiKey: _apiKeyFor(prefs, providerId),
+    model: ref.watch(refineModelProvider),
+  );
 });
 
 final recordingServiceProvider = Provider<RecordingService>((ref) {
@@ -105,7 +147,10 @@ class TranscriptionNotifier extends Notifier<TranscriptionState> {
       state = state.copyWith(rawText: rawText);
 
       final activePrompt = ref.read(activePromptProvider);
-      final polishedText = await _groq.refine(rawText, systemPrompt: activePrompt.content);
+      final polishedText = ref.read(useLocalRefineProvider)
+          ? await ref.read(localRefineServiceProvider).refine(rawText, systemPrompt: activePrompt.content)
+          : await ref.read(refineServiceProvider).refine(rawText, systemPrompt: activePrompt.content);
+
       state = state.copyWith(
         polishedText: polishedText,
         recordingStatus: RecordingStatus.idle,
