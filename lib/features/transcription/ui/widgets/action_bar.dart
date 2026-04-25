@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../image_transcription/ui/image_transcription_screen.dart';
 import '../../providers/transcription_provider.dart';
+import '../home_screen.dart';
 
 /// Bottom action bar with four icon buttons:
 ///   1. Mic  — Start / Stop recording
@@ -32,7 +33,17 @@ class ActionBar extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // 1. Mic — Record / Stop
+          // 1. Home — return to transcriptions list
+          _ActionButton(
+            icon: Icons.home,
+            label: 'Home',
+            color: scheme.primary,
+            onTap: Navigator.canPop(context)
+                ? () => Navigator.popUntil(context, (r) => r.isFirst)
+                : null,
+          ),
+
+          // 2. Mic — Record / Stop (navigates to recording screen if at root)
           _ActionButton(
             icon: state.isRecording ? Icons.stop_circle : Icons.mic,
             label: state.isRecording ? 'Stop' : 'Record',
@@ -40,7 +51,10 @@ class ActionBar extends ConsumerWidget {
             isLoading: state.isProcessing,
             onTap: state.isProcessing
                 ? null
-                : () => notifier.toggleRecording(),
+                : Navigator.canPop(context)
+                    ? () => notifier.toggleRecording()
+                    : () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const HomeScreen())),
           ),
 
           // 2. Transcribe from image

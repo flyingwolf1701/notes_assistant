@@ -3,6 +3,8 @@ import 'api_keys_screen.dart';
 import 'download_model_screen.dart';
 import 'models_config_screen.dart';
 import 'prompts_screen.dart';
+import '../../transcription/ui/widgets/action_bar.dart';
+import '../../../core/widgets/notes_app_bar.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -10,7 +12,8 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
+      appBar: const NotesAppBar(),
+      bottomNavigationBar: const SafeArea(top: false, child: ActionBar()),
       body: ListView(
         children: [
           ListTile(

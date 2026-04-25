@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'core/theme.dart';
 import 'core/desktop/desktop_wrapper.dart';
-import 'features/transcription/ui/home_screen.dart';
+import 'features/recordings/ui/recordings_screen.dart';
 
 class NotesAssistantApp extends StatelessWidget {
   const NotesAssistantApp({super.key});
@@ -14,7 +14,7 @@ class NotesAssistantApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
-      home: const HomeScreen(),
+      home: const RecordingsScreen(),
       debugShowCheckedModeBanner: false,
     );
 

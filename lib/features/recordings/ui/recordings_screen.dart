@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../models/recording.dart';
 import '../providers/recordings_provider.dart';
 import '../../transcription/ui/widgets/audio_player_widget.dart';
+import '../../transcription/ui/widgets/action_bar.dart';
+import '../../../core/widgets/notes_app_bar.dart';
 
 class RecordingsScreen extends ConsumerWidget {
   const RecordingsScreen({super.key});
@@ -14,9 +16,10 @@ class RecordingsScreen extends ConsumerWidget {
     final recordings = ref.watch(recordingsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Recordings'), centerTitle: true),
+      appBar: const NotesAppBar(),
+      bottomNavigationBar: const SafeArea(top: false, child: ActionBar()),
       body: recordings.isEmpty
-          ? const Center(child: Text('No recordings yet.'))
+          ? const Center(child: Text('No transcriptions yet.'))
           : ListView.builder(
               padding: const EdgeInsets.only(top: 8, bottom: 16),
               itemCount: recordings.length,
@@ -88,6 +91,7 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
         children: [
           // ── Header ──────────────────────────────────────────────────────
           ListTile(
+            onTap: () => setState(() => _expanded = !_expanded),
             title: Text(dateStr,
                 style: Theme.of(context).textTheme.titleSmall),
             subtitle: Text(
@@ -100,10 +104,30 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
               children: [
                 Text(r.durationLabel,
                     style: Theme.of(context).textTheme.labelSmall),
-                const SizedBox(width: 4),
+                Icon(_expanded ? Icons.expand_less : Icons.expand_more),
                 IconButton(
-                  icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                  onPressed: () => setState(() => _expanded = !_expanded),
+                  icon: Icon(Icons.delete_outline, color: scheme.error, size: 20),
+                  tooltip: 'Delete',
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Delete transcription?'),
+                        content: const Text('This cannot be undone.'),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel')),
+                          TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Delete')),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      await ref.read(recordingsProvider.notifier).delete(r.id);
+                    }
+                  },
                 ),
               ],
             ),
@@ -170,37 +194,6 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
                 ),
               ),
 
-            // ── Delete ───────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: TextButton.icon(
-                onPressed: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('Delete recording?'),
-                      content: const Text('This cannot be undone.'),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel')),
-                        TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Delete')),
-                      ],
-                    ),
-                  );
-                  if (confirm == true) {
-                    await ref
-                        .read(recordingsProvider.notifier)
-                        .delete(r.id);
-                  }
-                },
-                icon: Icon(Icons.delete_outline, color: scheme.error, size: 18),
-                label: Text('Delete',
-                    style: TextStyle(color: scheme.error)),
-              ),
-            ),
           ],
         ],
       ),

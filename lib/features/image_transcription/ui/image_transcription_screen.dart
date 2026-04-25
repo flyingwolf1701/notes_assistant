@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import '../providers/image_transcription_provider.dart';
-import 'widgets/candidate_text_widget.dart';
+import '../../recordings/models/recording.dart';
+import '../../recordings/providers/recordings_provider.dart';
+import '../../../core/widgets/notes_app_bar.dart';
+import '../../transcription/ui/widgets/action_bar.dart';
 
 class ImageTranscriptionScreen extends ConsumerWidget {
   const ImageTranscriptionScreen({super.key});
@@ -16,10 +18,8 @@ class ImageTranscriptionScreen extends ConsumerWidget {
     final notifier = ref.read(imageTranscriptionProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Image to Text'),
-        centerTitle: true,
-        actions: [
+      appBar: NotesAppBar(
+        extraActions: [
           if (state.isDone)
             IconButton(
               icon: const Icon(Icons.refresh),
@@ -33,7 +33,7 @@ class ImageTranscriptionScreen extends ConsumerWidget {
           : state.isProcessing
               ? _ProcessingView(state: state)
               : _CaptureView(state: state, notifier: notifier),
-      bottomNavigationBar: null,
+      bottomNavigationBar: const SafeArea(top: false, child: ActionBar()),
     );
   }
 }
@@ -244,110 +244,59 @@ class _ProcessingView extends StatelessWidget {
 
 // ── Result view ───────────────────────────────────────────────────────────────
 
-class _ResultView extends StatelessWidget {
+class _ResultView extends ConsumerStatefulWidget {
   const _ResultView({required this.state, required this.notifier});
   final ImageSessionState state;
   final ImageTranscriptionNotifier notifier;
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final hasCandidates = RegExp(r'\{[^}]+\}').hasMatch(state.mergedMarkdown);
+  ConsumerState<_ResultView> createState() => _ResultViewState();
+}
 
-    if (state.status == ImageSessionStatus.error) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline, size: 48, color: scheme.error),
-              const SizedBox(height: 16),
-              Text('Extraction failed',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Text(state.errorMessage ?? 'Unknown error',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: scheme.error)),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: notifier.reset,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Try again'),
-              ),
-            ],
-          ),
-        ),
-      );
+class _ResultViewState extends ConsumerState<_ResultView> {
+  late final TextEditingController _controller;
+  bool _isEditing = false;
+  bool _isExpanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.state.mergedMarkdown);
+  }
+
+  @override
+  void didUpdateWidget(_ResultView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state.mergedMarkdown != widget.state.mergedMarkdown) {
+      _controller.text = widget.state.mergedMarkdown;
     }
+  }
 
-    return Column(
-      children: [
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
-        if (hasCandidates)
-          Container(
-            color: scheme.tertiaryContainer,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Icon(Icons.touch_app,
-                    size: 16, color: scheme.onTertiaryContainer),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Highlighted words are uncertain — tap to choose the correct one',
-                    style: TextStyle(
-                        color: scheme.onTertiaryContainer, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: CandidateTextWidget(
-              text: state.mergedMarkdown,
-              onResolved: notifier.resolveCandidates,
-            ),
-          ),
-        ),
-
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () {
-                      Clipboard.setData(
-                          ClipboardData(text: state.mergedMarkdown));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Copied to clipboard'),
-                            duration: Duration(seconds: 2)),
-                      );
-                    },
-                    icon: const Icon(Icons.copy),
-                    label: const Text('Copy Markdown'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _addMore(context),
-                  icon: const Icon(Icons.add_photo_alternate),
-                  label: const Text('Add page'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+  Future<void> _save(BuildContext context) async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    final recording = Recording(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      createdAt: DateTime.now(),
+      durationSeconds: 0,
+      rawText: text,
+      polishedText: text,
     );
+    await ref.read(recordingsProvider.notifier).add(recording);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Saved to transcriptions'),
+            duration: Duration(seconds: 2)),
+      );
+      setState(() => _isEditing = false);
+    }
   }
 
   Future<void> _addMore(BuildContext context) async {
@@ -360,17 +309,161 @@ class _ResultView extends StatelessWidget {
         dialogTitle: 'Add another page',
       );
       if (result != null && result.files.first.path != null) {
-        notifier.addImage(result.files.first.path!);
-        await notifier.processImages();
+        widget.notifier.addImage(result.files.first.path!);
+        await widget.notifier.processImages();
       }
     } else {
       final picker = ImagePicker();
       final file =
           await picker.pickImage(source: ImageSource.camera, imageQuality: 90);
       if (file != null) {
-        notifier.addImage(file.path);
-        await notifier.processImages();
+        widget.notifier.addImage(file.path);
+        await widget.notifier.processImages();
       }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    if (widget.state.status == ImageSessionStatus.error) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: scheme.error),
+              const SizedBox(height: 16),
+              Text('Extraction failed',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(widget.state.errorMessage ?? 'Unknown error',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.error)),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: widget.notifier.reset,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Try again'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(top: 8, bottom: 8),
+            children: [
+              Card(
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                elevation: 2,
+                child: Column(
+                  children: [
+                    // ── Card header ──────────────────────────────────────
+                    InkWell(
+                      onTap: () =>
+                          setState(() => _isExpanded = !_isExpanded),
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(12)),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'IMAGE TRANSCRIPTION',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: scheme.onSurface,
+                                    ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.add_photo_alternate,
+                                  color: scheme.onSurfaceVariant),
+                              tooltip: 'Add page',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => _addMore(context),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.save_outlined,
+                                  color: scheme.onSurfaceVariant),
+                              tooltip: 'Save to transcriptions',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => _save(context),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                _isEditing
+                                    ? Icons.check_circle_outline
+                                    : Icons.edit,
+                                color: _isEditing
+                                    ? scheme.primary
+                                    : scheme.onSurfaceVariant,
+                              ),
+                              tooltip:
+                                  _isEditing ? 'Done editing' : 'Edit',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () =>
+                                  setState(() => _isEditing = !_isEditing),
+                            ),
+                            AnimatedRotation(
+                              turns: _isExpanded ? 0.5 : 0,
+                              duration: const Duration(milliseconds: 200),
+                              child:
+                                  const Icon(Icons.keyboard_arrow_down),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // ── Card body ────────────────────────────────────────
+                    AnimatedCrossFade(
+                      duration: const Duration(milliseconds: 250),
+                      crossFadeState: _isExpanded
+                          ? CrossFadeState.showFirst
+                          : CrossFadeState.showSecond,
+                      firstChild: Padding(
+                        padding:
+                            const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: _isEditing
+                            ? TextField(
+                                controller: _controller,
+                                maxLines: null,
+                                keyboardType: TextInputType.multiline,
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  hintText: 'Edit transcription…',
+                                ),
+                              )
+                            : SelectableText(
+                                _controller.text,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium,
+                              ),
+                      ),
+                      secondChild: const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+      ],
+    );
   }
 }

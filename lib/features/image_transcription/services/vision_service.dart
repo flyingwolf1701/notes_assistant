@@ -22,7 +22,8 @@ class VisionService implements VisionServiceBase {
   static const _extractPrompt = '''
 Extract all text from this image and format it as Markdown.
 Rules:
-- Preserve headings, lists, and paragraph structure where visible
+- Read strictly top-to-bottom, left-to-right
+- Preserve headings, lists, and paragraph breaks — do not preserve line breaks within paragraphs
 - For words you cannot read clearly due to handwriting or image quality,
   write them as {option1|option2|option3} with your best guesses as options
 - Do not add commentary — output only the extracted Markdown text

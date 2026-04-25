@@ -1,23 +1,30 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'features/transcription/providers/transcription_provider.dart';
 
-const _kDevKeys = {
-  'api_key_groq': String.fromEnvironment('GROQ_API_KEY'),
-  'api_key_openrouter': String.fromEnvironment('OPENROUTER_API_KEY'),
-  'api_key_siliconflow': String.fromEnvironment('SILICONFLOW_API_KEY'),
+const _kEnvKeyMap = {
+  'GROQ_API_KEY': 'api_key_groq',
+  'OPENROUTER_API_KEY': 'api_key_openrouter',
+  'SILICONFLOW_API_KEY': 'api_key_siliconflow',
 };
 
 Future<void> _seedDevKeys(SharedPreferences prefs) async {
-  for (final entry in _kDevKeys.entries) {
-    if (entry.value.isNotEmpty) {
-      await prefs.setString(entry.key, entry.value);
+  try {
+    final raw = await rootBundle.loadString('.env.json');
+    final env = jsonDecode(raw) as Map<String, dynamic>;
+    for (final entry in _kEnvKeyMap.entries) {
+      final value = env[entry.key] as String?;
+      if (value != null && value.isNotEmpty) {
+        await prefs.setString(entry.value, value);
+      }
     }
-  }
+  } catch (_) {}
 }
 
 void main() async {
