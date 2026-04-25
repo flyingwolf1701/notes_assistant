@@ -98,6 +98,8 @@ class _SessionCard extends ConsumerStatefulWidget {
 
 class _SessionCardState extends ConsumerState<_SessionCard> {
   bool _expanded = true;
+  bool _rawChecked = true;
+  bool _polishedChecked = true;
   bool _editingRaw = false;
   bool _editingPolished = false;
   late TextEditingController _rawCtrl;
@@ -118,8 +120,14 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
     super.dispose();
   }
 
-  void _copy(String text) {
-    Clipboard.setData(ClipboardData(text: text));
+  void _copySelected(TranscriptionState state) {
+    final buf = StringBuffer();
+    if (_rawChecked && state.rawText.isNotEmpty) buf.writeln(state.rawText);
+    if (_polishedChecked && state.polishedText.isNotEmpty) {
+      if (buf.isNotEmpty) buf.writeln();
+      buf.write(state.polishedText);
+    }
+    Clipboard.setData(ClipboardData(text: buf.toString().trim()));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)),
     );
@@ -195,10 +203,10 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
             if (state.rawText.isNotEmpty)
               _Section(
                 label: 'RAW',
+                checked: _rawChecked,
+                onCheck: (v) => setState(() => _rawChecked = v),
                 editing: _editingRaw,
-                onCopy: () => _copy(state.rawText),
-                onEdit: () =>
-                    setState(() => _editingRaw = !_editingRaw),
+                onEdit: () => setState(() => _editingRaw = !_editingRaw),
                 child: _editingRaw
                     ? TextField(
                         controller: _rawCtrl,
@@ -213,10 +221,10 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
             if (state.polishedText.isNotEmpty)
               _Section(
                 label: 'POLISHED',
+                checked: _polishedChecked,
+                onCheck: (v) => setState(() => _polishedChecked = v),
                 editing: _editingPolished,
-                onCopy: () => _copy(state.polishedText),
-                onEdit: () =>
-                    setState(() => _editingPolished = !_editingPolished),
+                onEdit: () => setState(() => _editingPolished = !_editingPolished),
                 child: _editingPolished
                     ? TextField(
                         controller: _polishedCtrl,
@@ -229,7 +237,7 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
 
             if (_editingRaw || _editingPolished)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                 child: Row(
                   children: [
                     FilledButton(
@@ -248,6 +256,33 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
                   ],
                 ),
               ),
+
+            // ── Copy / Send ───────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: Row(
+                children: [
+                  FilledButton.icon(
+                    onPressed: (_rawChecked || _polishedChecked)
+                        ? () => _copySelected(state)
+                        : null,
+                    icon: const Icon(Icons.copy, size: 16),
+                    label: const Text('Copy'),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Obsidian integration coming soon'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    ),
+                    icon: const Icon(Icons.send, size: 16),
+                    label: const Text('Send'),
+                  ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
@@ -261,26 +296,33 @@ class _Section extends StatelessWidget {
   const _Section({
     required this.label,
     required this.child,
-    required this.onCopy,
+    required this.checked,
+    required this.onCheck,
     required this.onEdit,
     required this.editing,
   });
 
   final String label;
   final Widget child;
-  final VoidCallback onCopy;
+  final bool checked;
+  final ValueChanged<bool> onCheck;
   final VoidCallback onEdit;
   final bool editing;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Checkbox(
+                value: checked,
+                onChanged: (v) => onCheck(v ?? false),
+                visualDensity: VisualDensity.compact,
+              ),
               Text(
                 label,
                 style: Theme.of(context)
@@ -290,19 +332,16 @@ class _Section extends StatelessWidget {
               ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.copy, size: 18),
-                onPressed: onCopy,
-                tooltip: 'Copy',
-              ),
-              IconButton(
                 icon: Icon(editing ? Icons.close : Icons.edit, size: 18),
                 onPressed: onEdit,
                 tooltip: editing ? 'Cancel edit' : 'Edit',
               ),
             ],
           ),
-          child,
-          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: child,
+          ),
         ],
       ),
     );

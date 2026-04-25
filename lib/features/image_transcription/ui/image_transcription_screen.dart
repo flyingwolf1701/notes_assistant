@@ -286,7 +286,7 @@ class _ResultViewState extends ConsumerState<_ResultView> {
       createdAt: DateTime.now(),
       durationSeconds: 0,
       rawText: text,
-      polishedText: text,
+      polishedText: '',
     );
     await ref.read(recordingsProvider.notifier).add(recording);
     if (context.mounted) {

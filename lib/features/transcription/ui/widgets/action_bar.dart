@@ -4,11 +4,6 @@ import '../../../image_transcription/ui/image_transcription_screen.dart';
 import '../../providers/transcription_provider.dart';
 import '../home_screen.dart';
 
-/// Bottom action bar with four icon buttons:
-///   1. Mic  — Start / Stop recording
-///   2. Send — Process + (Phase 3) save to Obsidian
-///   3. Image — Transcribe from image (Phase 4 placeholder)
-///   4. Copy — Copy selected content to clipboard
 class ActionBar extends ConsumerWidget {
   const ActionBar({super.key});
 
@@ -17,6 +12,7 @@ class ActionBar extends ConsumerWidget {
     final state = ref.watch(transcriptionProvider);
     final notifier = ref.read(transcriptionProvider.notifier);
     final scheme = Theme.of(context).colorScheme;
+    final canPop = Navigator.canPop(context);
 
     return Container(
       height: 72,
@@ -38,7 +34,7 @@ class ActionBar extends ConsumerWidget {
             icon: Icons.home,
             label: 'Home',
             color: scheme.primary,
-            onTap: Navigator.canPop(context)
+            onTap: canPop
                 ? () => Navigator.popUntil(context, (r) => r.isFirst)
                 : null,
           ),
@@ -51,7 +47,7 @@ class ActionBar extends ConsumerWidget {
             isLoading: state.isProcessing,
             onTap: state.isProcessing
                 ? null
-                : Navigator.canPop(context)
+                : canPop
                     ? () => notifier.toggleRecording()
                     : () => Navigator.push(context,
                           MaterialPageRoute(builder: (_) => const HomeScreen())),
@@ -69,46 +65,11 @@ class ActionBar extends ConsumerWidget {
             ),
           ),
 
-          // 3. Send to Obsidian (Phase 3 — currently disabled)
-          _ActionButton(
-            icon: Icons.send,
-            label: 'Obsidian',
-            color: scheme.secondary,
-            onTap: () => _showComingSoon(context, 'Obsidian integration'),
-          ),
-
-          // 4. Copy to clipboard
-          _ActionButton(
-            icon: Icons.copy,
-            label: 'Copy',
-            color: scheme.onSurface,
-            onTap: state.hasContent
-                ? () async {
-                    await notifier.copyToClipboard();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Copied to clipboard'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  }
-                : null,
-          ),
         ],
       ),
     );
   }
 
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature coming in a future phase'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
 }
 
 class _ActionButton extends StatelessWidget {

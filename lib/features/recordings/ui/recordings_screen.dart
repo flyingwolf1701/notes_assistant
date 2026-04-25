@@ -40,6 +40,10 @@ class _RecordingCard extends ConsumerStatefulWidget {
 
 class _RecordingCardState extends ConsumerState<_RecordingCard> {
   bool _expanded = false;
+  bool _rawExpanded = false;
+  bool _polishedExpanded = false;
+  bool _rawChecked = true;
+  bool _polishedChecked = true;
   bool _editingRaw = false;
   bool _editingPolished = false;
   late TextEditingController _rawCtrl;
@@ -59,6 +63,19 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
     super.dispose();
   }
 
+  void _copySelected(Recording r) {
+    final buf = StringBuffer();
+    if (_rawChecked && r.rawText.isNotEmpty) buf.writeln(r.rawText);
+    if (_polishedChecked && r.polishedText.isNotEmpty) {
+      if (buf.isNotEmpty) buf.writeln();
+      buf.write(r.polishedText);
+    }
+    Clipboard.setData(ClipboardData(text: buf.toString().trim()));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)),
+    );
+  }
+
   Future<void> _saveEdit() async {
     final updated = widget.recording.copyWith(
       rawText: _rawCtrl.text,
@@ -71,18 +88,15 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
     });
   }
 
-  void _copy(String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final r = widget.recording;
     final scheme = Theme.of(context).colorScheme;
-    final dateStr = DateFormat('MMM d, yyyy  h:mm a').format(r.createdAt);
+    final isImage = r.audioPath == null && r.durationSeconds == 0;
+    final titleStr = isImage
+        ? 'Image  •  ${DateFormat('MMM d, yyyy').format(r.createdAt)}'
+        : DateFormat('MMM d, yyyy  h:mm a').format(r.createdAt);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -92,7 +106,7 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
           // ── Header ──────────────────────────────────────────────────────
           ListTile(
             onTap: () => setState(() => _expanded = !_expanded),
-            title: Text(dateStr,
+            title: Text(titleStr,
                 style: Theme.of(context).textTheme.titleSmall),
             subtitle: Text(
               r.polishedText.isNotEmpty ? r.polishedText : r.rawText,
@@ -102,8 +116,9 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(r.durationLabel,
-                    style: Theme.of(context).textTheme.labelSmall),
+                if (!isImage)
+                  Text(r.durationLabel,
+                      style: Theme.of(context).textTheme.labelSmall),
                 Icon(_expanded ? Icons.expand_less : Icons.expand_more),
                 IconButton(
                   icon: Icon(Icons.delete_outline, color: scheme.error, size: 20),
@@ -144,7 +159,10 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
             // ── Raw text ─────────────────────────────────────────────────
             _Section(
               label: 'RAW',
-              onCopy: () => _copy(r.rawText),
+              isExpanded: _rawExpanded,
+              onToggle: () => setState(() => _rawExpanded = !_rawExpanded),
+              checked: _rawChecked,
+              onCheck: (v) => setState(() => _rawChecked = v),
               onEdit: () => setState(() => _editingRaw = !_editingRaw),
               editing: _editingRaw,
               child: _editingRaw
@@ -160,23 +178,24 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
             if (r.polishedText.isNotEmpty)
               _Section(
                 label: 'POLISHED',
-                onCopy: () => _copy(r.polishedText),
-                onEdit: () =>
-                    setState(() => _editingPolished = !_editingPolished),
+                isExpanded: _polishedExpanded,
+                onToggle: () => setState(() => _polishedExpanded = !_polishedExpanded),
+                checked: _polishedChecked,
+                onCheck: (v) => setState(() => _polishedChecked = v),
+                onEdit: () => setState(() => _editingPolished = !_editingPolished),
                 editing: _editingPolished,
                 child: _editingPolished
                     ? TextField(
                         controller: _polishedCtrl,
                         maxLines: null,
-                        decoration:
-                            const InputDecoration(border: OutlineInputBorder()),
+                        decoration: const InputDecoration(border: OutlineInputBorder()),
                       )
                     : Text(r.polishedText),
               ),
 
             if (_editingRaw || _editingPolished)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                 child: Row(
                   children: [
                     FilledButton(onPressed: _saveEdit, child: const Text('Save')),
@@ -194,6 +213,33 @@ class _RecordingCardState extends ConsumerState<_RecordingCard> {
                 ),
               ),
 
+            // ── Copy / Send ───────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: Row(
+                children: [
+                  FilledButton.icon(
+                    onPressed: (_rawChecked || _polishedChecked)
+                        ? () => _copySelected(r)
+                        : null,
+                    icon: const Icon(Icons.copy, size: 16),
+                    label: const Text('Copy'),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Obsidian integration coming soon'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    ),
+                    icon: const Icon(Icons.send, size: 16),
+                    label: const Text('Send'),
+                  ),
+                ],
+              ),
+            ),
+
           ],
         ],
       ),
@@ -205,45 +251,60 @@ class _Section extends StatelessWidget {
   const _Section({
     required this.label,
     required this.child,
-    required this.onCopy,
+    required this.isExpanded,
+    required this.onToggle,
+    required this.checked,
+    required this.onCheck,
     required this.onEdit,
     required this.editing,
   });
 
   final String label;
   final Widget child;
-  final VoidCallback onCopy;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final bool checked;
+  final ValueChanged<bool> onCheck;
   final VoidCallback onEdit;
   final bool editing;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(label,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      )),
-              const Spacer(),
-              IconButton(
-                  icon: const Icon(Icons.copy, size: 18),
-                  onPressed: onCopy,
-                  tooltip: 'Copy'),
-              IconButton(
-                  icon: Icon(editing ? Icons.close : Icons.edit, size: 18),
-                  onPressed: onEdit,
-                  tooltip: editing ? 'Cancel edit' : 'Edit'),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: checked,
+                  onChanged: (v) => onCheck(v ?? false),
+                  visualDensity: VisualDensity.compact,
+                ),
+                Text(label,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        )),
+                const Spacer(),
+                if (isExpanded)
+                  IconButton(
+                      icon: Icon(editing ? Icons.close : Icons.edit, size: 18),
+                      onPressed: onEdit,
+                      tooltip: editing ? 'Cancel edit' : 'Edit'),
+                Icon(isExpanded ? Icons.expand_less : Icons.expand_more, size: 18),
+              ],
+            ),
           ),
-          child,
-          const SizedBox(height: 8),
-        ],
-      ),
+        ),
+        if (isExpanded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: child,
+          ),
+      ],
     );
   }
 }
