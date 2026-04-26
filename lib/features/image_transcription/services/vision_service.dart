@@ -20,13 +20,11 @@ class VisionService implements VisionServiceBase {
   final String mergeModel;
 
   static const _extractPrompt = '''
-Extract all text from this image and format it as Markdown.
-Rules:
-- Read strictly top-to-bottom, left-to-right
-- Preserve headings, lists, and paragraph breaks — do not preserve line breaks within paragraphs
-- For words you cannot read clearly due to handwriting or image quality,
-  write them as {option1|option2|option3} with your best guesses as options
-- Do not add commentary — output only the extracted Markdown text
+Extract all text from this image as Markdown. Read top-to-bottom, left-to-right.
+- Use real Markdown headings only where the source uses headings
+- Separate paragraphs with a blank line; do not use heading markers as dividers
+- For illegible words write {option1|option2} with your best guesses
+- Output only the extracted text. Stop immediately when all visible text is transcribed.
 ''';
 
   static const _mergePrompt = '''
@@ -49,6 +47,7 @@ Consecutive photos likely overlap — merge them into a single clean Markdown do
       '/chat/completions',
       data: jsonEncode({
         'model': extractModel,
+        'max_tokens': 2048,
         'messages': [
           {
             'role': 'user',
@@ -83,6 +82,7 @@ Consecutive photos likely overlap — merge them into a single clean Markdown do
       '/chat/completions',
       data: jsonEncode({
         'model': mergeModel,
+        'max_tokens': 4096,
         'messages': [
           {'role': 'system', 'content': _mergePrompt},
           {'role': 'user', 'content': numbered},

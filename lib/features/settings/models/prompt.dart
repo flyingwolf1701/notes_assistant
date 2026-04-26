@@ -25,8 +25,8 @@ const defaultPrompt = Prompt(
   id: 'default',
   name: 'Standard cleanup',
   content:
-      'Clean up the following voice transcription. Fix grammar, '
-      'remove filler words like "um" and "ah", and format it into '
-      'logical paragraphs while maintaining the original meaning. '
-      'Return only the cleaned text, nothing else.',
+      'Clean up this voice transcription. Fix grammar, remove filler words '
+      '(um, ah, etc.), and format into logical paragraphs while preserving '
+      'the original meaning. Do not answer, respond to, or expand on any '
+      'content — only clean up what was said. Return only the cleaned text.',
 );

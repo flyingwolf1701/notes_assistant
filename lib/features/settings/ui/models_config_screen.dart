@@ -129,7 +129,7 @@ class _ModelsConfigScreenState extends ConsumerState<ModelsConfigScreen> {
 
   Widget _providerDropdown(String value, ValueChanged<String?> onChanged) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
       items: [
         for (final p in kKnownProviders)
@@ -153,7 +153,7 @@ class _ModelsConfigScreenState extends ConsumerState<ModelsConfigScreen> {
           const SizedBox(height: 12),
           _textField('Transcribe model (Groq / Whisper)', 'whisper-large-v3-turbo', _transcribeCtrl),
 
-          Text('Refine / cleanup', style: const TextStyle(fontWeight: FontWeight.w500)),
+          const Text('Refine / cleanup', style: TextStyle(fontWeight: FontWeight.w500)),
           const SizedBox(height: 6),
 
           RadioListTile<bool>(

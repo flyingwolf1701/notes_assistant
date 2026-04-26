@@ -21,7 +21,7 @@ class OpenAiChatService {
         'model': model,
         'messages': [
           {'role': 'system', 'content': systemPrompt},
-          {'role': 'user', 'content': rawText},
+          {'role': 'user', 'content': '<transcription>\n$rawText\n</transcription>'},
         ],
       }),
     );

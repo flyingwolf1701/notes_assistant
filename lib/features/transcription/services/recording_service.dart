@@ -20,7 +20,7 @@ class RecordingService {
     _currentPath = '${dir.path}/recording_$timestamp.m4a';
 
     await _recorder.start(
-      RecordConfig(
+      const RecordConfig(
         encoder: AudioEncoder.aacLc,
         sampleRate: 44100,
         numChannels: 1,

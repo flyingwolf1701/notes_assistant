@@ -22,7 +22,6 @@ String _apiKeyFor(dynamic prefs, String id) =>
     (id == 'openrouter' ? prefs.getString('openrouter_api_key') : null) ??
     '';
 
-// Legacy aliases kept so existing importers compile unchanged.
 final groqApiKeyProvider = Provider<String>((ref) =>
     _apiKeyFor(ref.watch(sharedPreferencesProvider), 'groq'));
 
@@ -60,6 +59,19 @@ final visionProviderIdProvider = Provider<String>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return prefs.getString('provider_vision') ?? 'openrouter';
 });
+
+// ── Polish settings ──────────────────────────────────────────────────────────
+
+final polishThresholdSecondsProvider = Provider<int>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return prefs.getInt('polish_threshold_seconds') ?? 30;
+});
+
+// IDs of recordings currently being polished in the background
+final polishingIdsProvider = StateProvider<Set<String>>((ref) => {});
+
+// ID waiting for user confirmation before local-model polish
+final pendingLocalPolishProvider = StateProvider<String?>((ref) => null);
 
 // ── Service providers ────────────────────────────────────────────────────────
 
@@ -134,43 +146,114 @@ class TranscriptionNotifier extends Notifier<TranscriptionState> {
     _recordingTimer?.cancel();
     _recordingTimer = null;
     final durationSeconds = state.recordingSeconds;
+    state = state.copyWith(recordingStatus: RecordingStatus.processing);
+
     try {
-      state = state.copyWith(recordingStatus: RecordingStatus.processing);
       final audioPath = await _recorder.stop();
       if (audioPath == null) throw Exception('No audio file produced');
-      state = state.copyWith(audioPath: audioPath);
 
-      final key = ref.read(groqApiKeyProvider);
-      // ignore: avoid_print
-      print('DEBUG groq key length=${key.length} starts=${key.isEmpty ? "EMPTY" : key.substring(0, 4)}');
       final rawText = await _groq.transcribe(audioPath);
-      state = state.copyWith(rawText: rawText);
 
-      final activePrompt = ref.read(activePromptProvider);
-      final polishedText = ref.read(useLocalRefineProvider)
-          ? await ref.read(localRefineServiceProvider).refine(rawText, systemPrompt: activePrompt.content)
-          : await ref.read(refineServiceProvider).refine(rawText, systemPrompt: activePrompt.content);
-
-      state = state.copyWith(
-        polishedText: polishedText,
-        recordingStatus: RecordingStatus.idle,
-      );
-
+      // Save immediately with raw text — polish happens asynchronously
       final recording = Recording(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         createdAt: DateTime.now(),
         durationSeconds: durationSeconds,
         audioPath: audioPath,
         rawText: rawText,
-        polishedText: polishedText,
+        polishedText: '',
       );
       await ref.read(recordingsProvider.notifier).add(recording);
+
+      state = state.copyWith(
+        rawText: rawText,
+        recordingStatus: RecordingStatus.idle,
+      );
+
+      final threshold = ref.read(polishThresholdSecondsProvider);
+      if (durationSeconds >= threshold) {
+        _schedulePolish(recording);
+      }
     } catch (e) {
       state = state.copyWith(
         recordingStatus: RecordingStatus.idle,
         errorMessage: 'Processing failed: $e',
       );
     }
+  }
+
+  void _schedulePolish(Recording recording) {
+    if (ref.read(useLocalRefineProvider)) {
+      ref.read(pendingLocalPolishProvider.notifier).state = recording.id;
+    } else {
+      _polishRecording(recording);
+    }
+  }
+
+  Future<void> _polishRecording(Recording recording) async {
+    ref.read(polishingIdsProvider.notifier).update((s) => {...s, recording.id});
+    try {
+      final activePrompt = ref.read(activePromptProvider);
+      final polishedText = await ref.read(refineServiceProvider).refine(
+        recording.rawText,
+        systemPrompt: activePrompt.content,
+      );
+      await ref.read(recordingsProvider.notifier).update(
+        recording.copyWith(polishedText: polishedText),
+      );
+    } catch (e) {
+      state = state.copyWith(errorMessage: 'Polish failed: $e');
+    } finally {
+      ref.read(polishingIdsProvider.notifier)
+          .update((s) => s.difference({recording.id}));
+    }
+  }
+
+  // Manual polish trigger (from card "Clean Up" button)
+  Future<void> polishRecording(String recordingId) async {
+    final recording = ref
+        .read(recordingsProvider)
+        .cast<Recording?>()
+        .firstWhere((r) => r?.id == recordingId, orElse: () => null);
+    if (recording == null) return;
+
+    if (ref.read(useLocalRefineProvider)) {
+      ref.read(pendingLocalPolishProvider.notifier).state = recordingId;
+      return;
+    }
+    await _polishRecording(recording);
+  }
+
+  // Called when user confirms local-model polish dialog
+  Future<void> confirmLocalPolish(String recordingId) async {
+    ref.read(pendingLocalPolishProvider.notifier).state = null;
+    final recording = ref
+        .read(recordingsProvider)
+        .cast<Recording?>()
+        .firstWhere((r) => r?.id == recordingId, orElse: () => null);
+    if (recording == null) return;
+
+    ref.read(polishingIdsProvider.notifier)
+        .update((s) => {...s, recordingId});
+    try {
+      final activePrompt = ref.read(activePromptProvider);
+      final polishedText = await ref.read(localRefineServiceProvider).refine(
+        recording.rawText,
+        systemPrompt: activePrompt.content,
+      );
+      await ref.read(recordingsProvider.notifier).update(
+        recording.copyWith(polishedText: polishedText),
+      );
+    } catch (e) {
+      state = state.copyWith(errorMessage: 'Polish failed: $e');
+    } finally {
+      ref.read(polishingIdsProvider.notifier)
+          .update((s) => s.difference({recordingId}));
+    }
+  }
+
+  void declineLocalPolish() {
+    ref.read(pendingLocalPolishProvider.notifier).state = null;
   }
 
   // ── Edit mode ──────────────────────────────────────────────────────────────

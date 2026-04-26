@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'api_keys_screen.dart';
 import 'download_model_screen.dart';
 import 'models_config_screen.dart';
 import 'prompts_screen.dart';
 import '../../transcription/ui/widgets/action_bar.dart';
+import '../../transcription/providers/transcription_provider.dart';
 import '../../../core/widgets/notes_app_bar.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: const NotesAppBar(),
       bottomNavigationBar: const SafeArea(top: false, child: ActionBar()),
@@ -60,7 +62,76 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
+          _PolishThresholdTile(),
+          const Divider(height: 1),
         ],
+      ),
+    );
+  }
+}
+
+class _PolishThresholdTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final threshold = ref.watch(polishThresholdSecondsProvider);
+
+    return ListTile(
+      leading: const Icon(Icons.auto_fix_high),
+      title: const Text('Auto-polish threshold'),
+      subtitle: Text(
+        threshold == 0
+            ? 'Always auto-polish'
+            : 'Auto-polish recordings over $threshold seconds',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showThresholdDialog(context, ref, threshold),
+    );
+  }
+
+  Future<void> _showThresholdDialog(
+      BuildContext context, WidgetRef ref, int current) async {
+    int value = current;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Auto-polish threshold'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value == 0
+                    ? 'Always auto-polish'
+                    : 'Polish recordings over $value seconds',
+                style: Theme.of(ctx).textTheme.bodyMedium,
+              ),
+              Slider(
+                value: value.toDouble(),
+                min: 0,
+                max: 180,
+                divisions: 18,
+                label: value == 0 ? 'Always' : '${value}s',
+                onChanged: (v) => setState(() => value = v.round()),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await ref
+                    .read(sharedPreferencesProvider)
+                    .setInt('polish_threshold_seconds', value);
+                ref.invalidate(polishThresholdSecondsProvider);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }

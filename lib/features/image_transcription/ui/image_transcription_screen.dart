@@ -18,16 +18,7 @@ class ImageTranscriptionScreen extends ConsumerWidget {
     final notifier = ref.read(imageTranscriptionProvider.notifier);
 
     return Scaffold(
-      appBar: NotesAppBar(
-        extraActions: [
-          if (state.isDone)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Start over',
-              onPressed: notifier.reset,
-            ),
-        ],
-      ),
+      appBar: const NotesAppBar(),
       body: state.isDone || state.status == ImageSessionStatus.error
           ? _ResultView(state: state, notifier: notifier)
           : state.isProcessing
@@ -388,6 +379,13 @@ class _ResultViewState extends ConsumerState<_ResultView> {
                                       color: scheme.onSurface,
                                     ),
                               ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.refresh,
+                                  color: scheme.onSurfaceVariant),
+                              tooltip: 'Start over',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: widget.notifier.reset,
                             ),
                             IconButton(
                               icon: Icon(Icons.add_photo_alternate,

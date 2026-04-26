@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../image_transcription/ui/image_transcription_screen.dart';
 import '../../providers/transcription_provider.dart';
-import '../home_screen.dart';
 
 class ActionBar extends ConsumerWidget {
   const ActionBar({super.key});
@@ -47,10 +46,7 @@ class ActionBar extends ConsumerWidget {
             isLoading: state.isProcessing,
             onTap: state.isProcessing
                 ? null
-                : canPop
-                    ? () => notifier.toggleRecording()
-                    : () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const HomeScreen())),
+                : () => notifier.toggleRecording(),
           ),
 
           // 2. Transcribe from image
